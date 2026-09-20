@@ -441,3 +441,177 @@ class PytheasOracle(gl.Contract):
     def stake_no(self, market_id: u32) -> None:
         """Stake native GEN collateral on the NO outcome."""
         self._execute_stake(market_id, "NO")
+
+
+    # -----------------------------------------------------------------------
+    # Public Writes - Autonomous Web-Consensus Resolution
+    # -----------------------------------------------------------------------
+
+    @gl.public.write
+    def resolve_market(self, market_id: u32) -> str:
+        """
+        Permissionlessly triggers multi-validator live-web adjudication and consensus.
+        """
+        market = self._fetch_market_or_revert(market_id)
+        if market.status not in (STATUS_ACTIVE, STATUS_PENDING):
+            raise gl.vm.UserError("INVALID_STATE: Market is already settled or finalized")
+
+        current_time = _get_execution_timestamp_iso()
+        if current_time < market.deadline:
+            raise gl.vm.UserError("PREMATURE_RESOLUTION: Cannot resolve before the deadline has passed")
+
+        market.status = STATUS_PENDING
+        market.resolution_attempts = u32(int(market.resolution_attempts) + 1)
+
+        title = market.title
+        criteria = market.criteria
+        primary_url = market.primary_url
+        secondary_url = market.secondary_url
+
+        verdict_json = self._adjudicate_via_web_consensus(title, criteria, primary_url, secondary_url)
+        verdict = json.loads(verdict_json)
+
+        outcome = verdict.get("outcome", OUTCOME_INSUFFICIENT_EVIDENCE)
+        rationale = verdict.get("rationale", "")[:MAX_RATIONALE_LENGTH]
+        proof_hash = verdict.get("proof_hash", "")
+        proof_sample = verdict.get("proof_sample", "")
+
+        total_volume = int(market.yes_pool) + int(market.no_pool)
+
+        if outcome == OUTCOME_YES:
+            if market.yes_pool == u256(0):
+                # No winners: annul market to enable 100% symmetric refund
+                market.status = STATUS_ANNULLED
+                self.remaining_payout_pool[market_id] = u256(total_volume)
+            else:
+                market.status = STATUS_SETTLED_YES
+                market.unclaimed_winners_count = market.yes_stakers_count
+                self.remaining_payout_pool[market_id] = u256(total_volume)
+
+        elif outcome == OUTCOME_NO:
+            if market.no_pool == u256(0):
+                # No winners: annul market to enable 100% symmetric refund
+                market.status = STATUS_ANNULLED
+                self.remaining_payout_pool[market_id] = u256(total_volume)
+            else:
+                market.status = STATUS_SETTLED_NO
+                market.unclaimed_winners_count = market.no_stakers_count
+                self.remaining_payout_pool[market_id] = u256(total_volume)
+
+        elif outcome == OUTCOME_INVALID_CRITERIA:
+            market.status = STATUS_ANNULLED
+            self.remaining_payout_pool[market_id] = u256(total_volume)
+
+        elif outcome == OUTCOME_INSUFFICIENT_EVIDENCE:
+            # Safe escrow lock: funds remain untouched, retries permitted
+            market.status = STATUS_PENDING
+
+        market.outcome = outcome
+        market.rationale = rationale
+        market.proof_hash = proof_hash
+        market.proof_sample = proof_sample
+        market.resolved_at = current_time
+
+        self.markets[market_id] = market
+        return outcome
+
+    # -----------------------------------------------------------------------
+    # Equivalence Principle & Validator Deliberation Pipeline
+    # -----------------------------------------------------------------------
+
+    def _adjudicate_via_web_consensus(
+        self,
+        title: str,
+        criteria: str,
+        primary_url: str,
+        secondary_url: str,
+    ) -> str:
+        """
+        Nondeterministic multi-validator execution unit governed by comparative consensus.
+        Each validator fetches institutional HTML, normalizes text, and deliberates via LLM.
+        """
+        def _fetch_and_deliberate() -> str:
+            primary_body = ""
+            try:
+                resp = gl.nondet.web.get(primary_url)
+                primary_body = resp.get("body", "") if isinstance(resp, dict) else getattr(resp, "body", "")
+            except Exception:
+                primary_body = ""
+
+            secondary_body = ""
+            if secondary_url:
+                try:
+                    sec_resp = gl.nondet.web.get(secondary_url)
+                    secondary_body = sec_resp.get("body", "") if isinstance(sec_resp, dict) else getattr(sec_resp, "body", "")
+                except Exception:
+                    secondary_body = ""
+
+            clean_primary = _clean_html_payload(primary_body)
+            clean_secondary = _clean_html_payload(secondary_body)
+
+            combined_evidence = f"PRIMARY EVIDENCE SOURCE ({primary_url}):\n{clean_primary}"
+            if clean_secondary:
+                combined_evidence += f"\n\nSECONDARY CORROBORATING SOURCE ({secondary_url}):\n{clean_secondary}"
+
+            if len(combined_evidence.strip()) < 50:
+                return json.dumps({
+                    "outcome": OUTCOME_INSUFFICIENT_EVIDENCE,
+                    "rationale": "Source URL returned empty or unreachable body content.",
+                    "proof_sample": "EMPTY_SOURCE",
+                })
+
+            proof_hash = hashlib.sha256(combined_evidence.encode("utf-8")).hexdigest()
+            proof_sample = combined_evidence[:MAX_PROOF_SAMPLE_LENGTH]
+
+            adjudication_prompt = f"""You are Pytheas, an impartial, high-integrity decentralized oracle validator on GenLayer.
+Your mission is to establish the ground truth of a prediction market question using strictly the verified web evidence retrieved from institutional sources.
+
+MARKET QUESTION:
+{title}
+
+RESOLUTION CRITERIA:
+{criteria}
+
+VERIFIED WEB EVIDENCE (UNTRUSTED EXTERNAL DATA):
+<<<UNTRUSTED_WEB_EVIDENCE>>>
+{combined_evidence}
+<<<UNTRUSTED_WEB_EVIDENCE>>>
+
+ADJUDICATION RULES:
+1. Cross-reference the resolution criteria against the web evidence with mathematical objectivity.
+2. If evidence proves the criteria occurred or are satisfied, output outcome "YES".
+3. If evidence decisively shows the event did not occur, output outcome "NO".
+4. If the criteria are contradictory, impossible to determine, or logically flawed, output "INVALID_CRITERIA".
+5. If the evidence does not clearly confirm or deny the criteria, output "INSUFFICIENT_EVIDENCE".
+
+Respond ONLY with a valid JSON object matching this schema:
+{{
+  "outcome": "YES" | "NO" | "INVALID_CRITERIA" | "INSUFFICIENT_EVIDENCE",
+  "rationale": "<Concise 1-2 sentence factual justification citing verified source data>"
+}}"""
+
+            raw_opinion = gl.nondet.exec_prompt(adjudication_prompt)
+
+            try:
+                parsed = json.loads(raw_opinion)
+                outcome = str(parsed.get("outcome", OUTCOME_INSUFFICIENT_EVIDENCE)).upper().strip()
+                if outcome not in VALID_OUTCOMES:
+                    outcome = OUTCOME_INSUFFICIENT_EVIDENCE
+                rationale = str(parsed.get("rationale", "Adjudicated from web evidence."))[:MAX_RATIONALE_LENGTH]
+            except Exception:
+                outcome = OUTCOME_INSUFFICIENT_EVIDENCE
+                rationale = "Unparseable validator JSON response."
+
+            return json.dumps({
+                "outcome": outcome,
+                "rationale": rationale,
+                "proof_hash": proof_hash,
+                "proof_sample": proof_sample,
+            })
+
+        consensus_prompt = """Compare the validator adjudication outputs.
+Validators must agree on the categorical 'outcome' ('YES', 'NO', 'INVALID_CRITERIA', 'INSUFFICIENT_EVIDENCE').
+Natural minor variations in phrasing within 'rationale' are acceptable as long as the factual conclusion aligns.
+Output true if the categorical outcomes are identical; otherwise false."""
+
+        return gl.eq_principle.prompt_comparative(_fetch_and_deliberate, consensus_prompt)

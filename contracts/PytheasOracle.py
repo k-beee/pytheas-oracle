@@ -235,3 +235,88 @@ def _clean_html_payload(html_content: str) -> str:
     text = text.replace("&nbsp;", " ").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", '"').replace("&#39;", "'")
     text = re.sub(r"\s+", " ", text)
     return text.strip()[:6000]
+
+
+# ---------------------------------------------------------------------------
+# Pytheas Main Intelligent Contract
+# ---------------------------------------------------------------------------
+
+class PytheasOracle(gl.Contract):
+    """
+    Autonomous Live-Web Oracle & Parimutuel Settlement Clearinghouse on GenLayer.
+    """
+
+    governor: Address
+    next_market_id: u32
+    markets: TreeMap[u32, OracleMarket]
+    stakes: TreeMap[str, u256]
+    has_claimed: TreeMap[str, bool]
+    custom_domains: TreeMap[str, bool]
+    remaining_payout_pool: TreeMap[u32, u256]
+
+    def __init__(self):
+        """
+        Deploy and initialize the Pytheas Oracle Clearinghouse.
+        """
+        self.next_market_id = u32(0)
+        sender = getattr(gl.message, "sender_address", None)
+        if sender is not None:
+            self.governor = _normalize_address(sender)
+        else:
+            self.governor = Address("0x0000000000000000000000000000000000000000")
+
+    # -----------------------------------------------------------------------
+    # Helper Key Formatters & Internal Lookups
+    # -----------------------------------------------------------------------
+
+    def _format_stake_key(self, market_id: u32, side: str, staker_addr: Address) -> str:
+        return f"{int(market_id)}:{side}:{staker_addr.as_hex}"
+
+    def _format_claim_key(self, market_id: u32, staker_addr: Address) -> str:
+        return f"{int(market_id)}:{staker_addr.as_hex}"
+
+    def _fetch_market_or_revert(self, market_id: u32) -> OracleMarket:
+        if market_id not in self.markets:
+            raise gl.vm.UserError("NONEXISTENT_MARKET: Pytheas Market ID does not exist")
+        return self.markets[market_id]
+
+    def _is_domain_authorized(self, host_domain: str) -> bool:
+        if not host_domain:
+            return False
+        # Check custom dynamic registry first
+        if self.custom_domains.get(host_domain, False):
+            return True
+        # Check base institutional domains and valid subdomains
+        for allowed in BASE_INSTITUTIONAL_DOMAINS:
+            if host_domain == allowed or host_domain.endswith("." + allowed):
+                return True
+        return False
+
+    # -----------------------------------------------------------------------
+    # Protocol Governance & Whitelist Management
+    # -----------------------------------------------------------------------
+
+    @gl.public.write
+    def register_trusted_domain(self, domain: str) -> None:
+        """Adds a new authoritative domain to the dynamic institutional registry."""
+        caller = _normalize_address(gl.message.sender_address)
+        if bytes(caller.as_bytes) != bytes(self.governor.as_bytes):
+            raise gl.vm.UserError("UNAUTHORIZED: Only protocol governor may register domains")
+        cleaned = domain.strip().lower()
+        if len(cleaned) < 3 or "." not in cleaned:
+            raise gl.vm.UserError("INVALID_DOMAIN: Must be a valid domain string")
+        self.custom_domains[cleaned] = True
+
+    @gl.public.write
+    def deprecate_trusted_domain(self, domain: str) -> None:
+        """Deprecates a domain from the dynamic institutional registry."""
+        caller = _normalize_address(gl.message.sender_address)
+        if bytes(caller.as_bytes) != bytes(self.governor.as_bytes):
+            raise gl.vm.UserError("UNAUTHORIZED: Only protocol governor may deprecate domains")
+        cleaned = domain.strip().lower()
+        self.custom_domains[cleaned] = False
+
+    @gl.public.view
+    def is_trusted_domain(self, domain: str) -> bool:
+        """Verifies whether a domain or its parent host is currently authorized."""
+        return self._is_domain_authorized(domain.strip().lower())

@@ -140,3 +140,70 @@ class OracleMarket:
 
     created_at: str
     resolved_at: str
+
+
+# ---------------------------------------------------------------------------
+# Utility & Safety Functions
+# ---------------------------------------------------------------------------
+
+def _normalize_address(val) -> Address:
+    """Ensures input address is a valid GenLayer Address type."""
+    return val if isinstance(val, Address) else Address(val)
+
+
+def _get_execution_timestamp_iso() -> str:
+    """Reads the consensus-verified transaction timestamp from message metadata."""
+    raw = getattr(gl, "message_raw", None)
+    if isinstance(raw, dict) and "datetime" in raw:
+        return raw["datetime"]
+    nested = getattr(getattr(gl, "message", None), "raw", None)
+    if isinstance(nested, dict) and "datetime" in nested:
+        return nested["datetime"]
+    msg_dt = getattr(getattr(gl, "message", None), "datetime", None)
+    if msg_dt is not None:
+        return str(msg_dt)
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _parse_iso_string(iso_str: str) -> datetime:
+    """Safely parses ISO-8601 UTC timestamp strings."""
+    return datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
+
+
+def _seconds_elapsed(start_iso: str, end_iso: str) -> float:
+    """Calculates duration in seconds between two ISO-8601 timestamps."""
+    try:
+        return (_parse_iso_string(end_iso) - _parse_iso_string(start_iso)).total_seconds()
+    except Exception:
+        return -1.0
+
+
+def _is_valid_web_url(url_str: str) -> bool:
+    """Validates that URL string uses standard http or https scheme."""
+    return url_str.startswith("http://") or url_str.startswith("https://")
+
+
+def _extract_domain(url_str: str) -> str:
+    """
+    Extracts the normalized host domain from an http(s) URL.
+    Safely strips userinfo credentials (e.g. user:pass@host) to mitigate authority spoofing attacks.
+    """
+    if url_str.startswith("https://"):
+        segment = url_str[len("https://") :]
+    elif url_str.startswith("http://"):
+        segment = url_str[len("http://") :]
+    else:
+        return ""
+
+    for delimiter in ("/", "?", "#"):
+        pos = segment.find(delimiter)
+        if pos != -1:
+            segment = segment[:pos]
+
+    # Defense against userinfo authority spoofing: e.g. https://attacker:secret@bbc.com/
+    if "@" in segment:
+        segment = segment.rsplit("@", 1)[1]
+    if ":" in segment:
+        segment = segment.split(":", 1)[0]
+
+    return segment.strip().lower()

@@ -105,3 +105,38 @@ BASE_INSTITUTIONAL_DOMAINS = (
     "arxiv.org",
     "github.com",
 )
+
+
+# ---------------------------------------------------------------------------
+# Storage Schemas (Strictly GenLayer Decorated)
+# ---------------------------------------------------------------------------
+
+@allow_storage
+@dataclass
+class OracleMarket:
+    """
+    Persistent on-chain state representation of a Pytheas prediction market.
+    Decorated with @allow_storage for safe GenVM serialization and indexing.
+    """
+    creator: Address
+    title: str
+    criteria: str
+    primary_url: str
+    secondary_url: str
+    deadline: str
+    status: str
+
+    outcome: str
+    rationale: str
+    proof_hash: str
+    proof_sample: str
+    resolution_attempts: u32
+
+    yes_pool: u256
+    no_pool: u256
+    yes_stakers_count: u32
+    no_stakers_count: u32
+    unclaimed_winners_count: u32
+
+    created_at: str
+    resolved_at: str

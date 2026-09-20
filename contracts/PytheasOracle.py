@@ -393,3 +393,51 @@ class PytheasOracle(gl.Contract):
         self.markets[market_id] = record
         self.remaining_payout_pool[market_id] = u256(0)
         return market_id
+
+
+    # -----------------------------------------------------------------------
+    # Public Writes - Parimutuel Staking Engine
+    # -----------------------------------------------------------------------
+
+    def _execute_stake(self, market_id: u32, side: str) -> None:
+        """Internal execution unit for depositing parimutuel collateral into YES/NO pools."""
+        market = self._fetch_market_or_revert(market_id)
+        if market.status != STATUS_ACTIVE:
+            raise gl.vm.UserError("MARKET_NOT_OPEN: Market is not active for staking")
+
+        current_time = _get_execution_timestamp_iso()
+        if current_time >= market.deadline:
+            raise gl.vm.UserError("DEADLINE_EXPIRED: Staking window has closed")
+
+        stake_value = gl.message.value
+        if stake_value < MIN_STAKE_WEI:
+            raise gl.vm.UserError("STAKE_TOO_LOW: Minimum deposit is 0.001 GEN")
+
+        sender_addr = _normalize_address(gl.message.sender_address)
+        stake_key = self._format_stake_key(market_id, side, sender_addr)
+        prior_stake = self.stakes.get(stake_key, u256(0))
+
+        if prior_stake == u256(0):
+            if side == "YES":
+                market.yes_stakers_count = u32(int(market.yes_stakers_count) + 1)
+            else:
+                market.no_stakers_count = u32(int(market.no_stakers_count) + 1)
+
+        self.stakes[stake_key] = u256(int(prior_stake) + int(stake_value))
+
+        if side == "YES":
+            market.yes_pool = u256(int(market.yes_pool) + int(stake_value))
+        else:
+            market.no_pool = u256(int(market.no_pool) + int(stake_value))
+
+        self.markets[market_id] = market
+
+    @gl.public.write.payable
+    def stake_yes(self, market_id: u32) -> None:
+        """Stake native GEN collateral on the YES outcome."""
+        self._execute_stake(market_id, "YES")
+
+    @gl.public.write.payable
+    def stake_no(self, market_id: u32) -> None:
+        """Stake native GEN collateral on the NO outcome."""
+        self._execute_stake(market_id, "NO")

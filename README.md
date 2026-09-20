@@ -9,6 +9,19 @@
 
 ---
 
+## 🔗 Live Deployed Contract & Network Info
+
+| Parameter | Value |
+| :--- | :--- |
+| **Network** | GenLayer StudioNet (Chain ID: `61999`) |
+| **Deployed Contract Address** | [`0xdd7fc06eE80dAB8f3E50f88Eb6b3e2f51DF7d117`](https://explorer-studio.genlayer.com/address/0xdd7fc06eE80dAB8f3E50f88Eb6b3e2f51DF7d117) |
+| **Intelligent Contract** | [`contracts/PytheasOracle.py`](contracts/PytheasOracle.py) |
+| **Explorer** | [View on GenLayer Studio Explorer](https://explorer-studio.genlayer.com/address/0xdd7fc06eE80dAB8f3E50f88Eb6b3e2f51DF7d117) |
+| **GenVM Runner** | `py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6` |
+| **Status** | Live & Verified on StudioNet |
+
+---
+
 ## 🧭 Executive Overview
 
 **Pytheas Oracle** is a decentralized prediction oracle and parimutuel settlement clearinghouse engineered natively for GenLayer Intelligent Contracts.

@@ -320,3 +320,76 @@ class PytheasOracle(gl.Contract):
     def is_trusted_domain(self, domain: str) -> bool:
         """Verifies whether a domain or its parent host is currently authorized."""
         return self._is_domain_authorized(domain.strip().lower())
+
+
+    # -----------------------------------------------------------------------
+    # Public Writes - Market Creation
+    # -----------------------------------------------------------------------
+
+    @gl.public.write
+    def create_market(
+        self,
+        title: str,
+        criteria: str,
+        primary_url: str,
+        secondary_url: str,
+        deadline: str,
+    ) -> u32:
+        """
+        Initializes a new prediction market on Pytheas with verified institutional source grounding.
+        """
+        if len(self.markets) >= MAX_MARKET_CAPACITY:
+            raise gl.vm.UserError("CAPACITY_EXCEEDED: Global market limit reached")
+        if len(title) < 10 or len(title) > MAX_TITLE_LENGTH:
+            raise gl.vm.UserError("INVALID_INPUT: Title length must be between 10 and 300 characters")
+        if len(criteria) < 20 or len(criteria) > MAX_CRITERIA_LENGTH:
+            raise gl.vm.UserError("INVALID_INPUT: Criteria length must be between 20 and 1200 characters")
+
+        # Validate primary source URL and anti-spoofed authority
+        if not _is_valid_web_url(primary_url) or len(primary_url) > MAX_URL_LENGTH:
+            raise gl.vm.UserError("INVALID_INPUT: Primary URL must be a valid http(s) URL")
+        if not self._is_domain_authorized(_extract_domain(primary_url)):
+            raise gl.vm.UserError("UNAUTHORIZED_SOURCE: Primary source domain is not in the trusted registry")
+
+        # Validate secondary corroborating source URL if provided
+        if secondary_url and len(secondary_url.strip()) > 0:
+            if not _is_valid_web_url(secondary_url) or len(secondary_url) > MAX_URL_LENGTH:
+                raise gl.vm.UserError("INVALID_INPUT: Secondary URL must be a valid http(s) URL")
+            if not self._is_domain_authorized(_extract_domain(secondary_url)):
+                raise gl.vm.UserError("UNAUTHORIZED_SOURCE: Secondary source domain is not in the trusted registry")
+
+        # Enforce forward resolution window
+        current_time = _get_execution_timestamp_iso()
+        elapsed_to_deadline = _seconds_elapsed(current_time, deadline)
+        if elapsed_to_deadline < MIN_DURATION_SECONDS:
+            raise gl.vm.UserError("INVALID_DEADLINE: Deadline must be at least 1 hour into the future")
+
+        market_id = self.next_market_id
+        self.next_market_id = u32(int(market_id) + 1)
+        creator_addr = _normalize_address(gl.message.sender_address)
+
+        record = OracleMarket(
+            creator=creator_addr,
+            title=title.strip(),
+            criteria=criteria.strip(),
+            primary_url=primary_url.strip(),
+            secondary_url=secondary_url.strip() if secondary_url else "",
+            deadline=deadline,
+            status=STATUS_ACTIVE,
+            outcome=OUTCOME_PENDING,
+            rationale="",
+            proof_hash="",
+            proof_sample="",
+            resolution_attempts=u32(0),
+            yes_pool=u256(0),
+            no_pool=u256(0),
+            yes_stakers_count=u32(0),
+            no_stakers_count=u32(0),
+            unclaimed_winners_count=u32(0),
+            created_at=current_time,
+            resolved_at="",
+        )
+
+        self.markets[market_id] = record
+        self.remaining_payout_pool[market_id] = u256(0)
+        return market_id

@@ -697,3 +697,50 @@ Output true if the categorical outcomes are identical; otherwise false."""
 
         _Payee(sender_addr).emit_transfer(value=u256(refund_amount))
         return u256(refund_amount)
+
+
+    @gl.public.write
+    def claim_stale_market_refund(self, market_id: u32) -> u256:
+        """
+        Permissionless dual-gated emergency escape hatch.
+        If resolution has failed >= 2 times and 72h have elapsed past deadline,
+        stakers can recover 100% of their deposited principal.
+        """
+        market = self._fetch_market_or_revert(market_id)
+
+        if market.status != STATUS_ABANDONED:
+            if market.status != STATUS_PENDING:
+                raise gl.vm.UserError("NOT_STALE: Market is not pending resolution")
+            if int(market.resolution_attempts) < MIN_FAILED_ATTEMPTS_BEFORE_ABANDON:
+                raise gl.vm.UserError("ABANDON_RESTRICTED: Requires at least 2 failed resolution attempts")
+
+            current_time = _get_execution_timestamp_iso()
+            if _seconds_elapsed(market.deadline, current_time) < ABANDON_TIMEOUT_SECONDS:
+                raise gl.vm.UserError("ABANDON_RESTRICTED: 72-hour grace period has not elapsed")
+
+            # Transition to ABANDONED
+            market.status = STATUS_ABANDONED
+            total_volume = int(market.yes_pool) + int(market.no_pool)
+            self.remaining_payout_pool[market_id] = u256(total_volume)
+            self.markets[market_id] = market
+
+        sender_addr = _normalize_address(gl.message.sender_address)
+        claim_key = self._format_claim_key(market_id, sender_addr)
+        if self.has_claimed.get(claim_key, False):
+            raise gl.vm.UserError("ALREADY_CLAIMED: Caller has already claimed refund")
+
+        yes_stake = int(self.stakes.get(self._format_stake_key(market_id, "YES", sender_addr), u256(0)))
+        no_stake = int(self.stakes.get(self._format_stake_key(market_id, "NO", sender_addr), u256(0)))
+        total_user_deposit = yes_stake + no_stake
+
+        if total_user_deposit == 0:
+            raise gl.vm.UserError("ZERO_DEPOSIT: Caller holds zero deposits in this market")
+
+        rem_pool = int(self.remaining_payout_pool.get(market_id, u256(0)))
+        refund_amount = min(total_user_deposit, rem_pool)
+
+        self.has_claimed[claim_key] = True
+        self.remaining_payout_pool[market_id] = u256(rem_pool - refund_amount)
+
+        _Payee(sender_addr).emit_transfer(value=u256(refund_amount))
+        return u256(refund_amount)

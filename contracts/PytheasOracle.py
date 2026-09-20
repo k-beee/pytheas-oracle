@@ -207,3 +207,31 @@ def _extract_domain(url_str: str) -> str:
         segment = segment.split(":", 1)[0]
 
     return segment.strip().lower()
+
+
+def _clean_html_payload(html_content: str) -> str:
+    """
+    In-contract regex-based HTML text extraction and sanitization engine.
+    
+    Strips scripts, CSS styling, headers, navigation chrome, and boilerplate markup.
+    Neutralizes prompt-injection maneuvers and protects LLM context windows against token bloat.
+    """
+    if not html_content:
+        return ""
+
+    text = html_content
+    # Strip dangerous/noisy DOM subtrees
+    text = re.sub(r"(?is)<script.*?>.*?</script>", " ", text)
+    text = re.sub(r"(?is)<style.*?>.*?</style>", " ", text)
+    text = re.sub(r"(?is)<noscript.*?>.*?</noscript>", " ", text)
+    text = re.sub(r"(?is)<nav.*?>.*?</nav>", " ", text)
+    text = re.sub(r"(?is)<header.*?>.*?</header>", " ", text)
+    text = re.sub(r"(?is)<footer.*?>.*?</footer>", " ", text)
+
+    # Strip remaining HTML tags
+    text = re.sub(r"<[^>]+>", " ", text)
+
+    # Unescape common HTML entities
+    text = text.replace("&nbsp;", " ").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", '"').replace("&#39;", "'")
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()[:6000]

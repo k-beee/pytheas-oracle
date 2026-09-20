@@ -615,3 +615,53 @@ Natural minor variations in phrasing within 'rationale' are acceptable as long a
 Output true if the categorical outcomes are identical; otherwise false."""
 
         return gl.eq_principle.prompt_comparative(_fetch_and_deliberate, consensus_prompt)
+
+
+    # -----------------------------------------------------------------------
+    # Public Writes - O(1) Pull-Payment Claim Engine
+    # -----------------------------------------------------------------------
+
+    @gl.public.write
+    def claim_payout(self, market_id: u32) -> u256:
+        """
+        O(1) constant-time withdrawal for winning stakers.
+        Absorbs remainder division dust for the final claimer to guarantee exact solvency.
+        """
+        market = self._fetch_market_or_revert(market_id)
+        if market.status not in (STATUS_SETTLED_YES, STATUS_SETTLED_NO):
+            raise gl.vm.UserError("MARKET_NOT_SETTLED: Market is not settled decisively")
+
+        sender_addr = _normalize_address(gl.message.sender_address)
+        claim_key = self._format_claim_key(market_id, sender_addr)
+        if self.has_claimed.get(claim_key, False):
+            raise gl.vm.UserError("ALREADY_CLAIMED: Caller has already claimed payout")
+
+        winning_side = "YES" if market.status == STATUS_SETTLED_YES else "NO"
+        user_stake_val = int(self.stakes.get(self._format_stake_key(market_id, winning_side, sender_addr), u256(0)))
+        if user_stake_val == 0:
+            raise gl.vm.UserError("NO_WINNING_STAKE: Caller holds zero stake on the winning side")
+
+        winning_pool = int(market.yes_pool) if winning_side == "YES" else int(market.no_pool)
+        total_volume = int(market.yes_pool) + int(market.no_pool)
+        rem_pool = int(self.remaining_payout_pool.get(market_id, u256(0)))
+
+        # Final winner dynamically sweeps remainder dust to ensure zero wei left behind
+        if int(market.unclaimed_winners_count) <= 1:
+            payout_amount = rem_pool
+        else:
+            payout_amount = (user_stake_val * total_volume) // winning_pool
+            if payout_amount > rem_pool:
+                payout_amount = rem_pool
+
+        if payout_amount <= 0:
+            raise gl.vm.UserError("INVALID_PAYOUT: Payout calculation resulted in zero wei")
+
+        # Checks-Effects-Interactions
+        self.has_claimed[claim_key] = True
+        self.remaining_payout_pool[market_id] = u256(rem_pool - payout_amount)
+        if int(market.unclaimed_winners_count) > 0:
+            market.unclaimed_winners_count = u32(int(market.unclaimed_winners_count) - 1)
+        self.markets[market_id] = market
+
+        _Payee(sender_addr).emit_transfer(value=u256(payout_amount))
+        return u256(payout_amount)

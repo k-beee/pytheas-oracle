@@ -3,6 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "description": "Pytheas: Autonomous Live-Web Oracle & Parimutuel Settlement Clearinghouse on GenLayer Intelligent Contracts",
+  "author": "k-beee <k-beee@users.noreply.github.com>",
+  "contributors": [
+    "k-beee (@k-beee) <https://github.com/k-beee>"
+  ],
+  "homepage": "https://github.com/k-beee/pytheas-oracle",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -11,21 +16,20 @@
     "export:schema": "python3 scripts/export_schema.py"
   },
   "dependencies": {
-    "clsx": "^2.1.1",
-    "genlayer-js": "^0.3.0",
-    "lucide-react": "^0.475.0",
-    "next": "^15.1.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "tailwind-merge": "^2.6.0",
-    "viem": "^2.21.54"
+    "genlayer-js": "^1.1.8",
+    "lucide-react": "^0.447.0",
+    "next": "^15.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "viem": "^2.21.0"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
-    "postcss": "^8.4.49",
-    "tailwindcss": "^3.4.17",
-    "typescript": "^5.7.2"
+    "@types/node": "^22.7.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.13",
+    "typescript": "^5.6.0"
   }
 }

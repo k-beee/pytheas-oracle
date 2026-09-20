@@ -665,3 +665,35 @@ Output true if the categorical outcomes are identical; otherwise false."""
 
         _Payee(sender_addr).emit_transfer(value=u256(payout_amount))
         return u256(payout_amount)
+
+
+    @gl.public.write
+    def claim_refund(self, market_id: u32) -> u256:
+        """
+        O(1) constant-time 100% symmetric refund withdrawal for annulled or voided markets.
+        """
+        market = self._fetch_market_or_revert(market_id)
+        if market.status != STATUS_ANNULLED:
+            raise gl.vm.UserError("NOT_ANNULLED: Market is not annulled")
+
+        sender_addr = _normalize_address(gl.message.sender_address)
+        claim_key = self._format_claim_key(market_id, sender_addr)
+        if self.has_claimed.get(claim_key, False):
+            raise gl.vm.UserError("ALREADY_CLAIMED: Caller has already claimed refund")
+
+        yes_stake = int(self.stakes.get(self._format_stake_key(market_id, "YES", sender_addr), u256(0)))
+        no_stake = int(self.stakes.get(self._format_stake_key(market_id, "NO", sender_addr), u256(0)))
+        total_user_deposit = yes_stake + no_stake
+
+        if total_user_deposit == 0:
+            raise gl.vm.UserError("ZERO_DEPOSIT: Caller holds zero deposits in this market")
+
+        rem_pool = int(self.remaining_payout_pool.get(market_id, u256(0)))
+        refund_amount = min(total_user_deposit, rem_pool)
+
+        # Checks-Effects-Interactions
+        self.has_claimed[claim_key] = True
+        self.remaining_payout_pool[market_id] = u256(rem_pool - refund_amount)
+
+        _Payee(sender_addr).emit_transfer(value=u256(refund_amount))
+        return u256(refund_amount)

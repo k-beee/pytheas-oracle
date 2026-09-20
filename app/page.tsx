@@ -12,6 +12,7 @@ import {
   fetchMarketCount,
   fetchMarket,
   fetchUserStake,
+  fetchProtocolSummary,
   getGenLayerClient,
   stakeYes,
   stakeNo,
@@ -21,135 +22,14 @@ import {
   claimStaleRefund,
   createMarket,
 } from "../src/contract";
-import { Compass, Sparkles, Shield, Award, Layers, Search, Filter } from "lucide-react";
+import { Compass, Sparkles, Shield, Award, Layers, Search, Filter, Plus, AlertCircle } from "lucide-react";
 import { formatGen } from "../src/utils";
 
-const DEMO_BENCHMARK_MARKETS: OracleMarketData[] = [
-  {
-    market_id: 0,
-    creator: "0x4994A3a7e5286E5DC416d59981C56085B8609772",
-    title: "Will NASA officially announce crew assignments for the Artemis III lunar landing mission before 2027?",
-    criteria: "Resolves YES if NASA publishes an official news release confirming astronauts assigned to the Artemis III surface landing crew before December 31, 2026. Resolves NO otherwise.",
-    primary_url: "https://www.nasa.gov/news",
-    secondary_url: "https://www.nature.com",
-    deadline: "2026-12-31T00:00:00Z",
-    deadline_iso: "2026-12-31T00:00:00Z",
-    deadline_timestamp: 1798675200,
-    status: 0,
-    status_str: "ACTIVE",
-    outcome: "",
-    consensus_outcome: "",
-    rationale: "",
-    consensus_rationale: "",
-    proof_hash: "",
-    evidence_proof_hash: "",
-    proof_sample: "",
-    evidence_proof_sample: "",
-    resolution_attempts: 0,
-    yes_pool: "4500000000000000000",
-    no_pool: "2500000000000000000",
-    total_volume: "7000000000000000000",
-    total_yes_stake: "4500000000000000000",
-    total_no_stake: "2500000000000000000",
-    total_pool_volume: "7000000000000000000",
-    total_claims_paid: "0",
-    remaining_pool: "7000000000000000000",
-    remaining_payout_pool: "7000000000000000000",
-    unclaimed_winners_count: 0,
-    yes_stakers_count: 14,
-    no_stakers_count: 8,
-    yes_percent: 64,
-    no_percent: 36,
-    created_at: "2026-09-18T12:00:00Z",
-    created_at_iso: "2026-09-18T12:00:00Z",
-    resolved_at: "",
-    resolved_at_iso: "",
-  },
-  {
-    market_id: 1,
-    creator: "0x4994A3a7e5286E5DC416d59981C56085B8609772",
-    title: "Will the US SEC finalize regulatory guidance for autonomous AI trading agents in 2026?",
-    criteria: "Resolves YES if the Securities and Exchange Commission issues a final rule notice or regulatory policy statement specifically addressing autonomous AI execution agents before December 31, 2026.",
-    primary_url: "https://www.sec.gov/news",
-    secondary_url: "https://www.reuters.com",
-    deadline: "2026-11-30T00:00:00Z",
-    deadline_iso: "2026-11-30T00:00:00Z",
-    deadline_timestamp: 1796000000,
-    status: 0,
-    status_str: "ACTIVE",
-    outcome: "",
-    consensus_outcome: "",
-    rationale: "",
-    consensus_rationale: "",
-    proof_hash: "",
-    evidence_proof_hash: "",
-    proof_sample: "",
-    evidence_proof_sample: "",
-    resolution_attempts: 0,
-    yes_pool: "8200000000000000000",
-    no_pool: "9400000000000000000",
-    total_volume: "17600000000000000000",
-    total_yes_stake: "8200000000000000000",
-    total_no_stake: "9400000000000000000",
-    total_pool_volume: "17600000000000000000",
-    total_claims_paid: "0",
-    remaining_pool: "17600000000000000000",
-    remaining_payout_pool: "17600000000000000000",
-    unclaimed_winners_count: 0,
-    yes_stakers_count: 22,
-    no_stakers_count: 28,
-    yes_percent: 47,
-    no_percent: 53,
-    created_at: "2026-09-17T08:30:00Z",
-    created_at_iso: "2026-09-17T08:30:00Z",
-    resolved_at: "",
-    resolved_at_iso: "",
-  },
-  {
-    market_id: 2,
-    creator: "0x4994A3a7e5286E5DC416d59981C56085B8609772",
-    title: "Will NOAA report above-average accumulated cyclone energy for the 2026 Atlantic season?",
-    criteria: "Resolves YES if NOAA's official post-season tropical meteorological summary certifies total ACE exceeding 103% of the 30-year historical median. Resolves NO otherwise.",
-    primary_url: "https://www.noaa.gov/news",
-    secondary_url: "",
-    deadline: "2026-09-19T00:00:00Z",
-    deadline_iso: "2026-09-19T00:00:00Z",
-    deadline_timestamp: 1789776000,
-    status: 2,
-    status_str: "SETTLED_YES",
-    outcome: "YES",
-    consensus_outcome: "YES",
-    rationale: "NOAA post-season climate review published on official news portal verified Atlantic basin ACE reached 142% of normal median.",
-    consensus_rationale: "NOAA post-season climate review published on official news portal verified Atlantic basin ACE reached 142% of normal median.",
-    proof_hash: "a4f89d3bc7e112448a90bb12ee3387bcf98012da77661144bb221199ee0011bb",
-    evidence_proof_hash: "a4f89d3bc7e112448a90bb12ee3387bcf98012da77661144bb221199ee0011bb",
-    proof_sample: "PRIMARY EVIDENCE SOURCE (https://www.noaa.gov/news):\nNOAA Climate Prediction Center confirms the 2026 Atlantic season generated 142% of median Accumulated Cyclone Energy (ACE) under persistent warm sea temperatures.",
-    evidence_proof_sample: "PRIMARY EVIDENCE SOURCE (https://www.noaa.gov/news):\nNOAA Climate Prediction Center confirms the 2026 Atlantic season generated 142% of median Accumulated Cyclone Energy (ACE) under persistent warm sea temperatures.",
-    resolution_attempts: 1,
-    yes_pool: "6000000000000000000",
-    no_pool: "4000000000000000000",
-    total_volume: "10000000000000000000",
-    total_yes_stake: "6000000000000000000",
-    total_no_stake: "4000000000000000000",
-    total_pool_volume: "10000000000000000000",
-    total_claims_paid: "2500000000000000000",
-    remaining_pool: "7500000000000000000",
-    remaining_payout_pool: "7500000000000000000",
-    unclaimed_winners_count: 5,
-    yes_stakers_count: 12,
-    no_stakers_count: 9,
-    yes_percent: 60,
-    no_percent: 40,
-    created_at: "2026-08-15T10:00:00Z",
-    created_at_iso: "2026-08-15T10:00:00Z",
-    resolved_at: "2026-09-19T02:15:00Z",
-    resolved_at_iso: "2026-09-19T02:15:00Z",
-  }
-];
-
 export default function HomePage() {
-  const [markets, setMarkets] = useState<OracleMarketData[]>(DEMO_BENCHMARK_MARKETS);
-  const [governor, setGovernor] = useState<string>("0x4994A3a7e5286E5DC416d59981C56085B8609772");
+  const [markets, setMarkets] = useState<OracleMarketData[]>([]);
+  const [governor, setGovernor] = useState<string>("0x40E8Aa2A2bB8A0Cac70d02823014d0EddCCE371A");
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<"ALL" | "ACTIVE" | "SETTLED">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
@@ -168,36 +48,87 @@ export default function HomePage() {
   const [resolvingMarketId, setResolvingMarketId] = useState<number | null>(null);
   const [notification, setNotification] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
-  // User stakes map
-  const [userStakes, setUserStakes] = useState<Record<number, { claimable_amount: string; claimed: boolean }>>({
-    2: { claimable_amount: "1500000000000000000", claimed: false },
-  });
+  // User stakes map: keyed by market_id
+  const [userStakes, setUserStakes] = useState<Record<number, { claimable_amount: string; claimed: boolean }>>({});
+
+  const handleConnectWallet = async () => {
+    if (typeof window !== "undefined" && (window as any).ethereum) {
+      try {
+        const accounts = await (window as any).ethereum.request({
+          method: "eth_requestAccounts",
+        });
+        if (accounts && accounts[0]) {
+          setWalletAddress(accounts[0]);
+          setNotification({
+            message: `Connected wallet ${accounts[0].slice(0, 6)}...${accounts[0].slice(-4)}`,
+            type: "success",
+          });
+          setTimeout(() => setNotification(null), 4000);
+        }
+      } catch (err: any) {
+        setNotification({
+          message: err?.message || "Wallet connection was rejected",
+          type: "error",
+        });
+        setTimeout(() => setNotification(null), 4000);
+      }
+    } else {
+      setNotification({
+        message: "No Web3 wallet detected. Please install MetaMask to interact on GenLayer StudioNet.",
+        type: "error",
+      });
+      setTimeout(() => setNotification(null), 5000);
+    }
+  };
 
   const loadOnChainMarkets = async () => {
     setIsRefreshing(true);
     try {
       const client = getGenLayerClient();
+
+      // Query protocol summary for governor & metadata
+      const summary = await fetchProtocolSummary(client);
+      if (summary && summary.governor) {
+        setGovernor(summary.governor);
+      }
+
       const count = await fetchMarketCount(client);
-      if (count > 0) {
+      if (count === 0) {
+        setMarkets([]);
+        setUserStakes({});
+      } else {
         const loaded: OracleMarketData[] = [];
         for (let i = 0; i < count; i++) {
           const m = await fetchMarket(client, i);
           if (m) loaded.push(m);
         }
-        if (loaded.length > 0) {
-          setMarkets(loaded);
+        setMarkets(loaded);
+
+        if (walletAddress) {
+          const stakes: Record<number, { claimable_amount: string; claimed: boolean }> = {};
+          for (const m of loaded) {
+            const s = await fetchUserStake(client, m.market_id, walletAddress);
+            if (s) {
+              stakes[m.market_id] = {
+                claimable_amount: s.claimable_amount,
+                claimed: s.claimed,
+              };
+            }
+          }
+          setUserStakes(stakes);
         }
       }
     } catch (err) {
-      console.warn("Could not query live contract, displaying benchmark markets:", err);
+      console.warn("Could not query live contract:", err);
     } finally {
+      setIsLoading(false);
       setIsRefreshing(false);
     }
   };
 
   useEffect(() => {
     loadOnChainMarkets();
-  }, []);
+  }, [walletAddress]);
 
   const handleOpenStake = (market: OracleMarketData, side: "YES" | "NO") => {
     setSelectedMarketForStake(market);
@@ -280,8 +211,12 @@ export default function HomePage() {
     loadOnChainMarkets();
   };
 
-  // Compute protocol totals
+  // Compute protocol totals strictly from live data
   const totalVolumeWei = markets.reduce((acc, m) => acc + BigInt(m.total_pool_volume || "0"), 0n);
+
+  const claimableCount = Object.values(userStakes).filter(
+    (s) => BigInt(s.claimable_amount || "0") > 0n && !s.claimed
+  ).length;
 
   // Filter markets
   const filteredMarkets = markets.filter((m) => {
@@ -302,8 +237,12 @@ export default function HomePage() {
         totalMarkets={markets.length}
         totalVolume={formatGen(totalVolumeWei)}
         isRefreshing={isRefreshing}
+        walletAddress={walletAddress}
+        claimableCount={claimableCount}
         onRefresh={loadOnChainMarkets}
         onOpenCreateModal={() => setIsCreateModalOpen(true)}
+        onOpenClaimStation={() => setIsClaimStationOpen(true)}
+        onConnectWallet={handleConnectWallet}
       />
 
       {/* Hero Banner */}
@@ -316,7 +255,10 @@ export default function HomePage() {
                 <span>Nautical Live-Web Consensus Matrix</span>
               </div>
               <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-white">
-                Verifiable Prediction Markets. <span className="text-transparent bg-clip-text bg-gradient-to-r from-polar-400 to-cobalt-500">Autonomous Settlement.</span>
+                Verifiable Prediction Markets.{" "}
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-polar-400 to-cobalt-500">
+                  Autonomous Settlement.
+                </span>
               </h2>
               <p className="mt-2 max-w-2xl text-sm text-slate-400 leading-relaxed">
                 Pytheas navigates institutional live-web endpoints to corroborate objective truth. Featuring O(1) pull-payment claims, dual-source evidence corroboration, and in-contract HTML sanitization.
@@ -344,7 +286,7 @@ export default function HomePage() {
 
       {/* Notification Toast */}
       {notification && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center space-x-2 rounded-xl border border-polar-500/40 bg-midnight-900/90 p-4 shadow-2xl backdrop-blur-xl">
+        <div className="fixed bottom-6 right-6 z-50 flex items-center space-x-2 rounded-xl border border-polar-500/40 bg-midnight-900/95 p-4 shadow-2xl backdrop-blur-xl">
           <Sparkles className="h-5 w-5 text-polar-400" />
           <span className="text-xs font-semibold text-white">{notification.message}</span>
         </div>
@@ -384,21 +326,59 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Market Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredMarkets.map((m) => (
-            <OracleMarketCard
-              key={m.market_id}
-              market={m}
-              userClaimable={userStakes[m.market_id]?.claimable_amount || "0"}
-              isResolving={resolvingMarketId === m.market_id}
-              onOpenStake={handleOpenStake}
-              onOpenTelemetry={handleOpenTelemetry}
-              onResolve={handleResolve}
-              onClaim={(id) => handleClaim(id, m.status === 4 ? "REFUND" : m.status === 5 ? "ABANDON" : "PAYOUT")}
-            />
-          ))}
-        </div>
+        {/* Market Content: Loading / Empty State / Grid */}
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <Compass className="h-8 w-8 animate-spin text-polar-400 mb-3" />
+            <p className="text-sm font-mono text-slate-400">Loading Pytheas on-chain markets...</p>
+          </div>
+        ) : markets.length === 0 ? (
+          <div className="rounded-2xl border border-polar-500/20 bg-midnight-900/60 p-12 text-center backdrop-blur-xl">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-polar-500/30 bg-polar-500/10 text-polar-400 shadow-lg shadow-polar-500/10 mb-4">
+              <Compass className="h-7 w-7 animate-spin-slow" />
+            </div>
+            <div className="inline-flex items-center space-x-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-mono text-emerald-400 mb-3">
+              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Clearinghouse Live on StudioNet (0xdd7f...d117)</span>
+            </div>
+            <h3 className="text-lg font-bold text-white">No Prediction Markets Charted Yet</h3>
+            <p className="mt-2 text-xs text-slate-400 font-mono max-w-md mx-auto">
+              Pytheas Oracle clearinghouse is live on GenLayer StudioNet with 0 markets charted. Chart the first live-web corroboration market to initiate parimutuel consensus!
+            </p>
+            <div className="mt-6">
+              <button
+                onClick={() => setIsCreateModalOpen(true)}
+                className="inline-flex items-center space-x-2 rounded-xl bg-gradient-to-r from-polar-500 to-cobalt-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-polar-500/20 hover:brightness-110 active:scale-95 transition-all"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Chart First Market</span>
+              </button>
+            </div>
+          </div>
+        ) : filteredMarkets.length === 0 ? (
+          <div className="rounded-2xl border border-polar-500/20 bg-midnight-900/40 p-12 text-center backdrop-blur-xl">
+            <AlertCircle className="mx-auto h-8 w-8 text-slate-500 mb-2" />
+            <h3 className="text-base font-semibold text-slate-300">No Markets Match Filter</h3>
+            <p className="mt-1 text-xs text-slate-500 font-mono">
+              Try refining your search query or switch tabs.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {filteredMarkets.map((m) => (
+              <OracleMarketCard
+                key={m.market_id}
+                market={m}
+                userClaimable={userStakes[m.market_id]?.claimable_amount || "0"}
+                isResolving={resolvingMarketId === m.market_id}
+                onOpenStake={handleOpenStake}
+                onOpenTelemetry={handleOpenTelemetry}
+                onResolve={handleResolve}
+                onClaim={(id) => handleClaim(id, m.status === 4 ? "REFUND" : m.status === 5 ? "ABANDON" : "PAYOUT")}
+              />
+            ))}
+          </div>
+        )}
       </main>
 
       {/* Modals */}

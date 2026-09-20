@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Compass, Navigation2, ShieldCheck, Plus, RefreshCw, Cpu } from "lucide-react";
+import { Compass, ShieldCheck, Plus, RefreshCw, Cpu, Wallet, Award } from "lucide-react";
 import { truncateAddress } from "../src/utils";
 
 interface CelestialHeaderProps {
@@ -9,8 +9,12 @@ interface CelestialHeaderProps {
   totalMarkets: number;
   totalVolume: string;
   isRefreshing: boolean;
+  walletAddress: string | null;
+  claimableCount: number;
   onRefresh: () => void;
   onOpenCreateModal: () => void;
+  onOpenClaimStation: () => void;
+  onConnectWallet: () => void;
 }
 
 export const CelestialHeader: React.FC<CelestialHeaderProps> = ({
@@ -18,8 +22,12 @@ export const CelestialHeader: React.FC<CelestialHeaderProps> = ({
   totalMarkets,
   totalVolume,
   isRefreshing,
+  walletAddress,
+  claimableCount,
   onRefresh,
   onOpenCreateModal,
+  onOpenClaimStation,
+  onConnectWallet,
 }) => {
   return (
     <header className="sticky top-0 z-40 w-full border-b border-polar-500/20 bg-midnight-950/80 backdrop-blur-xl">
@@ -45,7 +53,7 @@ export const CelestialHeader: React.FC<CelestialHeaderProps> = ({
         </div>
 
         {/* Global Telemetry Chips */}
-        <div className="hidden md:flex items-center space-x-4">
+        <div className="hidden lg:flex items-center space-x-3">
           <div className="flex items-center space-x-2 rounded-lg border border-slate-800 bg-midnight-900/60 px-3 py-1.5 text-xs font-mono text-slate-300">
             <Cpu className="h-3.5 w-3.5 text-polar-400" />
             <span>Network:</span>
@@ -55,7 +63,7 @@ export const CelestialHeader: React.FC<CelestialHeaderProps> = ({
           <div className="flex items-center space-x-2 rounded-lg border border-slate-800 bg-midnight-900/60 px-3 py-1.5 text-xs font-mono text-slate-300">
             <ShieldCheck className="h-3.5 w-3.5 text-cobalt-400" />
             <span>Gov:</span>
-            <span className="text-polar-300">{governor ? truncateAddress(governor) : "0x4994...9772"}</span>
+            <span className="text-polar-300">{governor ? truncateAddress(governor) : "0x40E8...371A"}</span>
           </div>
 
           <div className="flex items-center space-x-2 rounded-lg border border-slate-800 bg-midnight-900/60 px-3 py-1.5 text-xs font-mono text-slate-300">
@@ -64,8 +72,23 @@ export const CelestialHeader: React.FC<CelestialHeaderProps> = ({
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center space-x-3">
+        {/* Action Buttons & Wallet */}
+        <div className="flex items-center space-x-2.5">
+          {/* Claim Station Button */}
+          <button
+            onClick={onOpenClaimStation}
+            className="relative flex items-center space-x-1.5 rounded-lg border border-polar-500/30 bg-polar-500/10 px-3 py-2 text-xs font-medium text-polar-300 transition-all hover:bg-polar-500/20 hover:border-polar-400/50"
+            title="Open Settlement Station"
+          >
+            <Award className="h-3.5 w-3.5 text-polar-400" />
+            <span className="hidden sm:inline">Claims</span>
+            {claimableCount > 0 && (
+              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-polar-500 text-[10px] font-bold text-midnight-950">
+                {claimableCount}
+              </span>
+            )}
+          </button>
+
           <button
             onClick={onRefresh}
             disabled={isRefreshing}
@@ -81,7 +104,17 @@ export const CelestialHeader: React.FC<CelestialHeaderProps> = ({
             className="flex items-center space-x-1.5 rounded-lg bg-gradient-to-r from-polar-500 to-cobalt-600 px-3.5 py-2 text-xs font-semibold text-white shadow-lg shadow-polar-500/20 transition-all hover:brightness-110 active:scale-95"
           >
             <Plus className="h-4 w-4" />
-            <span>Chart Market</span>
+            <span className="hidden sm:inline">Chart Market</span>
+            <span className="sm:hidden">Chart</span>
+          </button>
+
+          {/* Web3 Wallet Connect */}
+          <button
+            onClick={onConnectWallet}
+            className="flex items-center space-x-1.5 rounded-lg border border-slate-700 bg-midnight-900/90 px-3.5 py-2 text-xs font-mono font-medium text-slate-200 transition-all hover:border-polar-400 hover:bg-midnight-800"
+          >
+            <Wallet className="h-3.5 w-3.5 text-polar-400" />
+            <span>{walletAddress ? truncateAddress(walletAddress) : "Connect"}</span>
           </button>
         </div>
       </div>

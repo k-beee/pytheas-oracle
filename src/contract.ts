@@ -27,6 +27,20 @@ export async function fetchMarketCount(client: any): Promise<number> {
   }
 }
 
+export async function fetchProtocolSummary(client: any): Promise<ProtocolSummaryData | null> {
+  try {
+    const res = await client.readContract({
+      address: CONTRACT_ADDRESS,
+      functionName: "get_protocol_summary",
+      args: [],
+    });
+    return res as ProtocolSummaryData;
+  } catch (err) {
+    console.error("fetchProtocolSummary error:", err);
+    return null;
+  }
+}
+
 export async function fetchMarket(client: any, marketId: number): Promise<OracleMarketData | null> {
   try {
     const data = await client.readContract({

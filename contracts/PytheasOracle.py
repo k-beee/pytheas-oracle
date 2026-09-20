@@ -744,3 +744,181 @@ Output true if the categorical outcomes are identical; otherwise false."""
 
         _Payee(sender_addr).emit_transfer(value=u256(refund_amount))
         return u256(refund_amount)
+
+
+    # -----------------------------------------------------------------------
+    # Public Views & Protocol Telemetry
+    # -----------------------------------------------------------------------
+
+    def _serialize_market(self, market_id: u32, market: OracleMarket) -> dict:
+        """Helper to format contract state into comprehensive telemetry for web clients."""
+        total_volume = int(market.yes_pool) + int(market.no_pool)
+        yes_percent = 50
+        no_percent = 50
+        if total_volume > 0:
+            yes_percent = int((int(market.yes_pool) * 100) // total_volume)
+            no_percent = 100 - yes_percent
+
+        status_map = {
+            STATUS_ACTIVE: 0,
+            STATUS_PENDING: 1,
+            STATUS_SETTLED_YES: 2,
+            STATUS_SETTLED_NO: 3,
+            STATUS_ANNULLED: 4,
+            STATUS_ABANDONED: 5,
+        }
+        status_code = status_map.get(market.status, 0)
+        deadline_ts = 0
+        try:
+            deadline_ts = int(_parse_iso_string(market.deadline).timestamp())
+        except Exception:
+            deadline_ts = 0
+
+        rem_pool = self.remaining_payout_pool.get(market_id, u256(0))
+        claims_paid = u256(max(0, total_volume - int(rem_pool)))
+
+        return {
+            "market_id": int(market_id),
+            "creator": market.creator.as_hex,
+            "title": market.title,
+            "criteria": market.criteria,
+            "primary_url": market.primary_url,
+            "secondary_url": market.secondary_url,
+            "deadline": market.deadline,
+            "deadline_iso": market.deadline,
+            "deadline_timestamp": deadline_ts,
+            "status": status_code,
+            "status_str": market.status,
+            "outcome": market.outcome,
+            "consensus_outcome": market.outcome,
+            "rationale": market.rationale,
+            "consensus_rationale": market.rationale,
+            "proof_hash": market.proof_hash,
+            "evidence_proof_hash": market.proof_hash,
+            "proof_sample": market.proof_sample,
+            "evidence_proof_sample": market.proof_sample,
+            "resolution_attempts": int(market.resolution_attempts),
+            "yes_pool": str(market.yes_pool),
+            "no_pool": str(market.no_pool),
+            "total_volume": str(total_volume),
+            "total_yes_stake": str(market.yes_pool),
+            "total_no_stake": str(market.no_pool),
+            "total_pool_volume": str(total_volume),
+            "total_claims_paid": str(claims_paid),
+            "remaining_pool": str(rem_pool),
+            "remaining_payout_pool": str(rem_pool),
+            "unclaimed_winners_count": int(market.unclaimed_winners_count),
+            "yes_stakers_count": int(market.yes_stakers_count),
+            "no_stakers_count": int(market.no_stakers_count),
+            "yes_percent": yes_percent,
+            "no_percent": no_percent,
+            "created_at": market.created_at,
+            "created_at_iso": market.created_at,
+            "resolved_at": market.resolved_at,
+            "resolved_at_iso": market.resolved_at,
+        }
+
+    @gl.public.view
+    def get_market(self, market_id: u32) -> dict:
+        """Fetches complete structured market record and real-time odds."""
+        market = self._fetch_market_or_revert(market_id)
+        return self._serialize_market(market_id, market)
+
+    @gl.public.view
+    def get_market_count(self) -> u32:
+        """Returns the total number of markets created in Pytheas Oracle."""
+        return u32(len(self.markets))
+
+    @gl.public.view
+    def list_market_ids(self) -> list:
+        """Returns a list of all active or settled market IDs."""
+        return [int(mid) for mid in self.markets.keys()]
+
+    @gl.public.view
+    def get_stake(self, market_id: u32, side: str, staker: str) -> u256:
+        """Queries the current deposited stake for a specific address and outcome side."""
+        staker_addr = _normalize_address(staker)
+        return self.stakes.get(self._format_stake_key(market_id, side, staker_addr), u256(0))
+
+    @gl.public.view
+    def get_claimable_amount(self, market_id: u32, staker: str) -> u256:
+        """Calculates the exact claimable payout or refund for a staker in O(1)."""
+        if market_id not in self.markets:
+            return u256(0)
+        market = self.markets[market_id]
+        staker_addr = _normalize_address(staker)
+        claim_key = self._format_claim_key(market_id, staker_addr)
+
+        if self.has_claimed.get(claim_key, False):
+            return u256(0)
+
+        rem_pool = int(self.remaining_payout_pool.get(market_id, u256(0)))
+        total_volume = int(market.yes_pool) + int(market.no_pool)
+
+        if market.status == STATUS_SETTLED_YES:
+            user_stake = int(self.stakes.get(self._format_stake_key(market_id, "YES", staker_addr), u256(0)))
+            if user_stake == 0 or market.yes_pool == u256(0):
+                return u256(0)
+            if int(market.unclaimed_winners_count) <= 1:
+                return u256(rem_pool)
+            payout = (user_stake * total_volume) // int(market.yes_pool)
+            return u256(min(payout, rem_pool))
+
+        elif market.status == STATUS_SETTLED_NO:
+            user_stake = int(self.stakes.get(self._format_stake_key(market_id, "NO", staker_addr), u256(0)))
+            if user_stake == 0 or market.no_pool == u256(0):
+                return u256(0)
+            if int(market.unclaimed_winners_count) <= 1:
+                return u256(rem_pool)
+            payout = (user_stake * total_volume) // int(market.no_pool)
+            return u256(min(payout, rem_pool))
+
+        elif market.status in (STATUS_ANNULLED, STATUS_ABANDONED):
+            yes_stake = int(self.stakes.get(self._format_stake_key(market_id, "YES", staker_addr), u256(0)))
+            no_stake = int(self.stakes.get(self._format_stake_key(market_id, "NO", staker_addr), u256(0)))
+            return u256(min(yes_stake + no_stake, rem_pool))
+
+        return u256(0)
+
+    @gl.public.view
+    def get_user_stake(self, market_id: u32, user_address: str) -> dict:
+        """Returns consolidated stake and claim entitlement summary for a given participant."""
+        staker_addr = _normalize_address(user_address)
+        yes_stake = self.stakes.get(self._format_stake_key(market_id, "YES", staker_addr), u256(0))
+        no_stake = self.stakes.get(self._format_stake_key(market_id, "NO", staker_addr), u256(0))
+        claim_key = self._format_claim_key(market_id, staker_addr)
+        claimed = self.has_claimed.get(claim_key, False)
+        claimable = self.get_claimable_amount(market_id, user_address)
+        return {
+            "yes_stake": str(yes_stake),
+            "no_stake": str(no_stake),
+            "claimed": claimed,
+            "claimable_amount": str(claimable),
+        }
+
+    @gl.public.view
+    def get_protocol_summary(self) -> dict:
+        """Returns protocol-level metadata including governor and market volume counts."""
+        return {
+            "version": PROTOCOL_VERSION,
+            "governor": self.governor.as_hex,
+            "total_markets": len(self.markets),
+        }
+
+    @gl.public.view
+    def get_authorized_domains(self) -> list:
+        """Returns the base list of curated authoritative domains."""
+        return list(BASE_INSTITUTIONAL_DOMAINS)
+
+
+# ---------------------------------------------------------------------------
+# Module-Level Contract Interface for Native GEN Transfers (EVM Proxy)
+# ---------------------------------------------------------------------------
+
+@gl.evm.contract_interface
+class _Payee:
+    class View:
+        pass
+
+    class Write:
+        pass

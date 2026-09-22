@@ -14,9 +14,9 @@
 | Parameter | Value |
 | :--- | :--- |
 | **Network** | GenLayer StudioNet (Chain ID: `61999`) |
-| **Deployed Contract Address** | [`0x433A1ddb0224E230AeE015A50f24fD86E618F446`](https://explorer-studio.genlayer.com/address/0x433A1ddb0224E230AeE015A50f24fD86E618F446) |
+| **Deployed Contract Address** | [`0x7D2357fcAA6493b999E15c98b0249bA582719882`](https://explorer-studio.genlayer.com/address/0x7D2357fcAA6493b999E15c98b0249bA582719882) |
 | **Intelligent Contract** | [`contracts/PytheasOracle.py`](contracts/PytheasOracle.py) |
-| **Explorer** | [View on GenLayer Studio Explorer](https://explorer-studio.genlayer.com/address/0x433A1ddb0224E230AeE015A50f24fD86E618F446) |
+| **Explorer** | [View on GenLayer Studio Explorer](https://explorer-studio.genlayer.com/address/0x7D2357fcAA6493b999E15c98b0249bA582719882) |
 | **GenVM Runner** | `py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6` |
 | **Status** | Live & Verified on StudioNet |
 

@@ -23,7 +23,7 @@ const assert = require("assert");
 const { createClient, createAccount, chains } = require("genlayer-js");
 const { parseEther } = require("viem");
 
-const CONTRACT_ADDRESS = "0x433A1ddb0224E230AeE015A50f24fD86E618F446";
+const CONTRACT_ADDRESS = "0x7D2357fcAA6493b999E15c98b0249bA582719882";
 
 // Helper replicating src/contract.ts getGenLayerClient
 function getGenLayerClient(accountOrAddress, provider) {

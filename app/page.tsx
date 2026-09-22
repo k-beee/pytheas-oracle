@@ -137,11 +137,19 @@ export default function HomePage() {
   };
 
   const handleStake = async (marketId: number, side: "YES" | "NO", amountGen: string) => {
-    const client = getGenLayerClient();
+    if (!walletAddress) {
+      setNotification({
+        message: "Please connect your wallet before staking.",
+        type: "error",
+      });
+      setTimeout(() => setNotification(null), 4000);
+      return;
+    }
+    const client = getGenLayerClient(walletAddress);
     if (side === "YES") {
-      await stakeYes(client, marketId, amountGen);
+      await stakeYes(client, marketId, amountGen, walletAddress);
     } else {
-      await stakeNo(client, marketId, amountGen);
+      await stakeNo(client, marketId, amountGen, walletAddress);
     }
     setNotification({
       message: `Successfully staked ${amountGen} GEN on ${side}!`,
@@ -157,10 +165,18 @@ export default function HomePage() {
   };
 
   const handleResolve = async (marketId: number) => {
+    if (!walletAddress) {
+      setNotification({
+        message: "Please connect your wallet before triggering consensus resolution.",
+        type: "error",
+      });
+      setTimeout(() => setNotification(null), 4000);
+      return;
+    }
     setResolvingMarketId(marketId);
     try {
-      const client = getGenLayerClient();
-      await resolveMarket(client, marketId);
+      const client = getGenLayerClient(walletAddress);
+      await resolveMarket(client, marketId, walletAddress);
       setNotification({
         message: `Consensus resolved for market #${marketId}!`,
         type: "success",
@@ -178,13 +194,21 @@ export default function HomePage() {
   };
 
   const handleClaim = async (marketId: number, type: "PAYOUT" | "REFUND" | "ABANDON") => {
-    const client = getGenLayerClient();
+    if (!walletAddress) {
+      setNotification({
+        message: "Please connect your wallet to claim payouts.",
+        type: "error",
+      });
+      setTimeout(() => setNotification(null), 4000);
+      return;
+    }
+    const client = getGenLayerClient(walletAddress);
     if (type === "PAYOUT") {
-      await claimPayout(client, marketId);
+      await claimPayout(client, marketId, walletAddress);
     } else if (type === "REFUND") {
-      await claimRefund(client, marketId);
+      await claimRefund(client, marketId, walletAddress);
     } else {
-      await claimStaleRefund(client, marketId);
+      await claimStaleRefund(client, marketId, walletAddress);
     }
     setNotification({
       message: "Successfully pulled settlement payout from clearinghouse!",
@@ -201,8 +225,16 @@ export default function HomePage() {
     secondaryUrl: string,
     deadlineIso: string
   ) => {
-    const client = getGenLayerClient();
-    await createMarket(client, title, criteria, primaryUrl, secondaryUrl, deadlineIso);
+    if (!walletAddress) {
+      setNotification({
+        message: "Please connect your wallet to initialize a market.",
+        type: "error",
+      });
+      setTimeout(() => setNotification(null), 4000);
+      return;
+    }
+    const client = getGenLayerClient(walletAddress);
+    await createMarket(client, title, criteria, primaryUrl, secondaryUrl, deadlineIso, walletAddress);
     setNotification({
       message: "New prediction market charted on-chain!",
       type: "success",

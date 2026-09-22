@@ -37,3 +37,7 @@ pytest_cache/
 # GenLayer build artifacts
 artifacts/*.json
 !artifacts/*.schema.json
+
+# Build info & local scripts
+*.tsbuildinfo
+scripts/populate_live_studionet.cjs
